@@ -85,10 +85,7 @@ func reloadRegisterUpdate(client *bigquery.Client, files []setup.File, vars map[
 				// uses the same name but changes the metrics reported. Because
 				// this cannot be recovered, we use rtx.Must to exit and allow
 				// the runtime environment to restart.
-				checkErr := f.Register(c)
-				if checkErr != nil {
-					log.Printf("Failed to register collector: %v", checkErr)
-				}
+				rtx.Must(f.Register(c), "Failed to register collector: aborting")
 			} else {
 				start := time.Now()
 				err = f.Update()
