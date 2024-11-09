@@ -1,50 +1,61 @@
-#
-name: Build and Push to GitHub Container Registry
+name: Build and Push to GAR
 
-# This workflow runs when any of the following occur:
-# - A push is made to a branch called `main` or `seed`
-# - A tag starting with "v" is created
-# - A pull request is created or updated
 on:
   push:
     branches:
-      - main
-    tags:
-      - v*
-  # This creates an environment variable called `IMAGE_NAME ` with the value `ghtoken_product_demo`.
+      - "main"
+
 env:
-  IMAGE_NAME: prometheus-bigquery-exporter
-#
+  GAR_PROJECT_ID: mv-auxiliary
+  GAR_REPO: prometheus-bigquery-exporter
+  GAR_PROJECT_NAMESPACE: prometheus-bigquery-exporter
+
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
-  # This pushes the image to GitHub Packages.
-  push:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      packages: write
-      contents: read
-      #
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Git repository
+        uses: actions/checkout@v4
 
-      - name: Build image
-        run: docker build . --file Dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}"
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ secrets.GCP_WIP }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
 
-      - name: Log in to registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-        #
-      - name: Push image
-        run: |
-          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
 
-          # This changes all uppercase characters to lowercase.
-          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
-          # This strips the git ref prefix from the version.
-          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
-          # This strips the "v" prefix from the tag name.
-          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
-          # This uses the Docker `latest` tag convention.
-          [ "$VERSION" == "main" ] && VERSION=latest
-          echo IMAGE_ID=$IMAGE_ID
-          echo VERSION=$VERSION
-          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
-          docker push $IMAGE_ID:$VERSION
+      - name: Login to GAR
+        uses: docker/login-action@v3
+        with:
+          registry: asia-southeast1-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - uses: docker/metadata-action@v5
+        id: metadata
+        with:
+          images: |
+            asia-southeast1-docker.pkg.dev/${{ env.GAR_PROJECT_ID}}/${{ env.GAR_REPO}}/${{ env.GAR_PROJECT_NAMESPACE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build using Docker
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          file: Dockerfile
