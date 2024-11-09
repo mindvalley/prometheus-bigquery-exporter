@@ -48,7 +48,8 @@ jobs:
           images: |
             asia-southeast1-docker.pkg.dev/${{ env.GAR_PROJECT_ID}}/${{ env.GAR_REPO}}/${{ env.GAR_PROJECT_NAMESPACE }}
           tags: |
-            type=sha,prefix=gh-,format=short
+            type=ref,event=branch
+            type=ref,event=pr
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
