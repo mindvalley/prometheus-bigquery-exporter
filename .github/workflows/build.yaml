@@ -58,5 +58,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           file: Dockerfile
