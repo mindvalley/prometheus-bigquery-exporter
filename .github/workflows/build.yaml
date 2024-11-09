@@ -11,9 +11,6 @@ on:
       - main
     tags:
       - v*
-  pull_request:
-    branches:
-      - main
   # This creates an environment variable called `IMAGE_NAME ` with the value `ghtoken_product_demo`.
 env:
   IMAGE_NAME: prometheus-bigquery-exporter
